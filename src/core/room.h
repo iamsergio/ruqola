@@ -13,6 +13,8 @@
 #include <QObject>
 #include <QPointer>
 
+class QTimer;
+
 #include "channelcounterinfo.h"
 #include "libruqolacore_export.h"
 #include "retentioninfo.h"
@@ -302,6 +304,11 @@ public:
 
     [[nodiscard]] bool userIsMuted(const QString &username);
 
+    [[nodiscard]] bool autoSnoozeEnabled() const;
+    void setAutoSnoozeEnabled(bool enabled);
+    [[nodiscard]] int autoSnoozeIntervalMinutes() const;
+    void setAutoSnoozeIntervalMinutes(int minutes);
+
 Q_SIGNALS:
     void highlightsWordChanged();
     void nameChanged();
@@ -345,6 +352,7 @@ Q_SIGNALS:
 
     void notificationOptionsChanged();
     void avatarETagChanged();
+    void autoSnoozeChanged();
 
     void uidsChanged();
     void userNamesChanged();
@@ -363,6 +371,11 @@ private:
     LIBRUQOLACORE_NO_EXPORT void assignRoomStateValue(RoomState type, bool status);
     [[nodiscard]] LIBRUQOLACORE_NO_EXPORT bool roomStateValue(RoomState type) const;
     LIBRUQOLACORE_NO_EXPORT void parseBlockerArchived(const QJsonObject &json);
+
+    LIBRUQOLACORE_NO_EXPORT void ensureAutoSnoozeTimer();
+    LIBRUQOLACORE_NO_EXPORT void onAutoSnoozeTimerExpired();
+    LIBRUQOLACORE_NO_EXPORT void startAutoSnoozeTimer();
+    LIBRUQOLACORE_NO_EXPORT void stopAutoSnoozeTimer();
 
     [[nodiscard]] RoomExtra *roomExtra();
 
@@ -431,11 +444,16 @@ private:
     RetentionInfo mRetentionInfo;
     mutable Utils::AvatarInfo mCurrentAvatarInfo;
 
+    QTimer *mAutoSnoozeTimer = nullptr;
+
     UsersForRoomModel *const mUsersModelForRoom;
     QPointer<MessagesModel> mMessageModel;
     RocketChatAccount *const mRocketChatAccount;
 
     RoomStates mRoomStates = RoomState::None;
+    int mAutoSnoozeIntervalMinutes = 5;
+    bool mAutoSnoozeEnabled = false;
+    bool mPendingAlert = false;
 };
 
 LIBRUQOLACORE_EXPORT QDebug operator<<(QDebug d, const Room &t);

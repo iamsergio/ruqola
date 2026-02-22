@@ -22,6 +22,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QTimer>
 
 using namespace Qt::Literals::StringLiterals;
 Room::Room(RocketChatAccount *account, QObject *parent)
@@ -82,7 +83,8 @@ bool Room::isEqual(const Room &other) const
         && (mAvatarETag == other.avatarETag()) && (mUids == other.uids()) && (mUserNames == other.userNames()) && (highlightsWord() == other.highlightsWord())
         && (mRetentionInfo == other.retentionInfo()) && (teamInfo() == other.teamInfo()) && (mLastMessageAt == other.lastMessageAt())
         && (mGroupMentions == other.groupMentions()) && (mThreadUnread == other.threadUnread()) && (mRoomStates == other.roomStates())
-        && e2EKey() == other.e2EKey() && e2eKeyId() == other.e2eKeyId();
+        && e2EKey() == other.e2EKey() && e2eKeyId() == other.e2eKeyId() && (mAutoSnoozeEnabled == other.autoSnoozeEnabled())
+        && (mAutoSnoozeIntervalMinutes == other.autoSnoozeIntervalMinutes());
 }
 
 QString Room::displayRoomName() const
@@ -496,9 +498,88 @@ bool Room::blocker() const
 
 void Room::setAlert(bool alert)
 {
+    if (alert && mAutoSnoozeEnabled && mAutoSnoozeTimer && mAutoSnoozeTimer->isActive()) {
+        mPendingAlert = true;
+        return;
+    }
+    if (!alert && mAutoSnoozeEnabled) {
+        mPendingAlert = false;
+        startAutoSnoozeTimer();
+    }
     if (roomStateValue(Room::Alert) != alert) {
         assignRoomStateValue(Room::Alert, alert);
         Q_EMIT alertChanged();
+    }
+}
+
+void Room::ensureAutoSnoozeTimer()
+{
+    if (!mAutoSnoozeTimer) {
+        mAutoSnoozeTimer = new QTimer(this);
+        mAutoSnoozeTimer->setSingleShot(true);
+        connect(mAutoSnoozeTimer, &QTimer::timeout, this, &Room::onAutoSnoozeTimerExpired);
+    }
+}
+
+void Room::startAutoSnoozeTimer()
+{
+    ensureAutoSnoozeTimer();
+    mAutoSnoozeTimer->start(mAutoSnoozeIntervalMinutes * 60000);
+}
+
+void Room::stopAutoSnoozeTimer()
+{
+    if (mAutoSnoozeTimer) {
+        mAutoSnoozeTimer->stop();
+    }
+    mPendingAlert = false;
+}
+
+void Room::onAutoSnoozeTimerExpired()
+{
+    if (mPendingAlert) {
+        mPendingAlert = false;
+        assignRoomStateValue(Room::Alert, true);
+        Q_EMIT alertChanged();
+    }
+}
+
+bool Room::autoSnoozeEnabled() const
+{
+    return mAutoSnoozeEnabled;
+}
+
+void Room::setAutoSnoozeEnabled(bool enabled)
+{
+    if (mAutoSnoozeEnabled != enabled) {
+        mAutoSnoozeEnabled = enabled;
+        if (enabled) {
+            startAutoSnoozeTimer();
+        } else {
+            const bool hadPendingAlert = mPendingAlert;
+            stopAutoSnoozeTimer();
+            if (hadPendingAlert) {
+                assignRoomStateValue(Room::Alert, true);
+                Q_EMIT alertChanged();
+            }
+        }
+        Q_EMIT autoSnoozeChanged();
+    }
+}
+
+int Room::autoSnoozeIntervalMinutes() const
+{
+    return mAutoSnoozeIntervalMinutes;
+}
+
+void Room::setAutoSnoozeIntervalMinutes(int minutes)
+{
+    if (mAutoSnoozeIntervalMinutes != minutes) {
+        mAutoSnoozeIntervalMinutes = minutes;
+        if (mAutoSnoozeTimer && mAutoSnoozeTimer->isActive()) {
+            mAutoSnoozeTimer->start(mAutoSnoozeIntervalMinutes * 60000);
+        }
+        Q_EMIT autoSnoozeChanged();
     }
 }
 
@@ -1315,6 +1396,9 @@ void Room::deserialize(Room *r, const QJsonObject &o)
     }
 
     r->setUserNames(extractStringList(o, "usernames"_L1));
+
+    r->setAutoSnoozeIntervalMinutes(o["autoSnoozeIntervalMinutes"_L1].toInt(5));
+    r->setAutoSnoozeEnabled(o["autoSnoozeEnabled"_L1].toBool(false));
 }
 
 QStringList Room::extractStringList(const QJsonObject &o, const QString &key)
@@ -1464,6 +1548,13 @@ QByteArray Room::serialize(Room *r, bool toBinary)
     }
 
     serializeStringList(o, "usernames"_L1, r->userNames());
+
+    if (r->autoSnoozeEnabled()) {
+        o["autoSnoozeEnabled"_L1] = true;
+    }
+    if (r->autoSnoozeIntervalMinutes() != 5) {
+        o["autoSnoozeIntervalMinutes"_L1] = r->autoSnoozeIntervalMinutes();
+    }
 
     if (toBinary) {
         return QCborValue::fromJsonValue(o).toCbor();

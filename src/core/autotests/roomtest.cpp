@@ -91,8 +91,12 @@ void RoomTest::shouldHaveDefaultValue()
 
     QCOMPARE(input.lastOpenedAt(), -1);
 
+    QVERIFY(!input.autoSnoozeEnabled());
+    QCOMPARE(input.autoSnoozeIntervalMinutes(), 5);
+
     // 26/03/2024: size: 1040
-    QCOMPARE(sizeof(Room), 792);
+    // 22/02/2026: size: 792 (before auto-snooze members)
+    QCOMPARE(sizeof(Room), 816);
 }
 
 void RoomTest::shouldSerialized()
@@ -238,6 +242,10 @@ void RoomTest::shouldSerialized()
 
         // uids
         input.setUids({u"uids-bla"_s, u"uids-foo"_s});
+
+        // auto-snooze
+        input.setAutoSnoozeIntervalMinutes(10);
+        input.setAutoSnoozeEnabled(true);
 
         const QByteArray ba = Room::serialize(&input);
         // qDebug() << QJsonObject(QJsonDocument::fromBinaryData(ba).object());
@@ -502,6 +510,57 @@ void RoomTest::shouldParseRoomAndUpdateSubscription()
 
     auto m = Room::deserialize(docSerialized.object());
     QCOMPARE(r, *m);
+}
+
+void RoomTest::shouldTestAutoSnooze()
+{
+    // Verify defaults
+    Room r(nullptr);
+    QVERIFY(!r.autoSnoozeEnabled());
+    QCOMPARE(r.autoSnoozeIntervalMinutes(), 5);
+
+    // Alert passes through normally when snooze is disabled
+    r.setAlert(true);
+    QVERIFY(r.alert());
+    r.setAlert(false);
+    QVERIFY(!r.alert());
+
+    // Enable auto-snooze -- timer starts
+    r.setAutoSnoozeEnabled(true);
+    QVERIFY(r.autoSnoozeEnabled());
+
+    // User reads the channel (setAlert(false) while snooze enabled) -- timer restarts
+    r.setAlert(false);
+    QVERIFY(!r.alert());
+
+    // New message arrives while timer is running -- alert should be deferred
+    r.setAlert(true);
+    QVERIFY(!r.alert());
+
+    // Disabling snooze with a pending alert surfaces the alert immediately
+    r.setAutoSnoozeEnabled(false);
+    QVERIFY(!r.autoSnoozeEnabled());
+    QVERIFY(r.alert());
+
+    // With snooze disabled again, alerts pass through normally
+    r.setAlert(false);
+    r.setAlert(true);
+    QVERIFY(r.alert());
+
+    // Test timer expiry: use a 0 ms interval so the timer fires on the next event-loop tick
+    {
+        Room r2(nullptr);
+        r2.setAutoSnoozeIntervalMinutes(0);
+        r2.setAutoSnoozeEnabled(true);
+        r2.setAlert(false); // starts timer
+        r2.setAlert(true); // deferred
+        QVERIFY(!r2.alert());
+
+        QSignalSpy alertSpy(&r2, &Room::alertChanged);
+        QTest::qWait(50);
+        QVERIFY(!alertSpy.isEmpty());
+        QVERIFY(r2.alert());
+    }
 }
 
 // TODO add more autotests signal and co.

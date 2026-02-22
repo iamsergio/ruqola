@@ -13,6 +13,7 @@
 class QCheckBox;
 class Room;
 class QComboBox;
+class QSpinBox;
 class RocketChatAccount;
 class SoundConfigureWidget;
 class LIBRUQOLAWIDGETS_TESTS_EXPORT ConfigureNotificationWidget : public QWidget
@@ -30,6 +31,8 @@ private:
     QCheckBox *const mMuteGroupMentions;
     QCheckBox *const mShowBadgeMentions;
     QPointer<Room> mRoom;
+    QCheckBox *const mAutoSnoozeCheckBox;
+    QSpinBox *const mAutoSnoozeSpinBox;
     QComboBox *const mDesktopAlertCombobox;
     SoundConfigureWidget *const mDesktopSoundConfigureWidget;
     QComboBox *const mMobileAlertCombobox;

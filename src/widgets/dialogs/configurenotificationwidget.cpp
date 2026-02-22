@@ -18,6 +18,7 @@ using namespace Qt::Literals::StringLiterals;
 #include <QComboBox>
 #include <QFormLayout>
 #include <QGroupBox>
+#include <QSpinBox>
 #include <QVBoxLayout>
 
 ConfigureNotificationWidget::ConfigureNotificationWidget(RocketChatAccount *account, QWidget *parent)
@@ -26,6 +27,8 @@ ConfigureNotificationWidget::ConfigureNotificationWidget(RocketChatAccount *acco
     , mHideUnreadRoomStatus(new QCheckBox(i18nc("@option:check", "Hide Unread Room Status"), this))
     , mMuteGroupMentions(new QCheckBox(i18nc("@option:check", "Mute %1 and %2 mentions", u"@all"_s, u"@here"_s), this))
     , mShowBadgeMentions(new QCheckBox(i18nc("@option:check", "Show badge for mentions"), this))
+    , mAutoSnoozeCheckBox(new QCheckBox(i18nc("@option:check", "Enable Auto-Snooze"), this))
+    , mAutoSnoozeSpinBox(new QSpinBox(this))
     , mDesktopAlertCombobox(new QComboBox(this))
     , mDesktopSoundConfigureWidget(new SoundConfigureWidget(account, this))
     , mMobileAlertCombobox(new QComboBox(this))
@@ -130,6 +133,33 @@ ConfigureNotificationWidget::ConfigureNotificationWidget(RocketChatAccount *acco
                                                         RocketChatAccount::NotificationOptionsType::EmailNotifications,
                                                         mRocketChatAccount->notificationPreferences()->emailNotificationModel()->currentPreference(index));
     });
+
+    auto autoSnoozeGroupBox = new QGroupBox(i18n("Auto-Snooze"), this);
+    autoSnoozeGroupBox->setObjectName(u"autoSnoozeGroupBox"_s);
+    topLayout->addWidget(autoSnoozeGroupBox);
+
+    auto autoSnoozeGroupBoxLayout = new QFormLayout(autoSnoozeGroupBox);
+    autoSnoozeGroupBoxLayout->setObjectName(u"autoSnoozeGroupBoxLayout"_s);
+
+    mAutoSnoozeCheckBox->setObjectName(u"mAutoSnoozeCheckBox"_s);
+    mAutoSnoozeCheckBox->setToolTip(i18nc("@info:tooltip", "Suppress alert highlighting for a configurable duration after reading this channel"));
+    autoSnoozeGroupBoxLayout->addRow(mAutoSnoozeCheckBox);
+    connect(mAutoSnoozeCheckBox, &QCheckBox::toggled, this, [this](bool checked) {
+        mAutoSnoozeSpinBox->setEnabled(checked);
+        mRoom->setAutoSnoozeEnabled(checked);
+        mRocketChatAccount->updateRoomInDatabase(mRoom->roomId());
+    });
+
+    mAutoSnoozeSpinBox->setObjectName(u"mAutoSnoozeSpinBox"_s);
+    mAutoSnoozeSpinBox->setRange(1, 1440);
+    mAutoSnoozeSpinBox->setValue(5);
+    mAutoSnoozeSpinBox->setSuffix(i18nc("@label:spinbox suffix for minutes", " minutes"));
+    mAutoSnoozeSpinBox->setEnabled(false);
+    autoSnoozeGroupBoxLayout->addRow(i18n("Duration:"), mAutoSnoozeSpinBox);
+    connect(mAutoSnoozeSpinBox, &QSpinBox::valueChanged, this, [this](int value) {
+        mRoom->setAutoSnoozeIntervalMinutes(value);
+        mRocketChatAccount->updateRoomInDatabase(mRoom->roomId());
+    });
 }
 
 ConfigureNotificationWidget::~ConfigureNotificationWidget() = default;
@@ -155,6 +185,9 @@ void ConfigureNotificationWidget::setRoom(Room *room)
     mEmailAlertCombobox->setCurrentIndex(mRocketChatAccount->notificationPreferences()->emailNotificationModel()->setCurrentNotificationPreference(
         notificationOptions.emailNotifications().currentValue()));
     mDesktopSoundConfigureWidget->updateButtonState();
+    mAutoSnoozeCheckBox->setChecked(mRoom->autoSnoozeEnabled());
+    mAutoSnoozeSpinBox->setValue(mRoom->autoSnoozeIntervalMinutes());
+    mAutoSnoozeSpinBox->setEnabled(mRoom->autoSnoozeEnabled());
 }
 
 #include "moc_configurenotificationwidget.cpp"
