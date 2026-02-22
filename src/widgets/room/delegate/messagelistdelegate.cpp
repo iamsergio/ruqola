@@ -568,9 +568,13 @@ void MessageListDelegate::paint(QPainter *painter, const QStyleOptionViewItem &o
     if (!layout.sameSenderAsPreviousMessage) {
         // Draw the sender
         const QFont oldFont = painter->font();
+        const QPen oldPen = painter->pen();
         painter->setFont(layout.senderFont);
+        const bool isDark = option.palette.color(QPalette::Window).lightness() < 128;
+        painter->setPen(isDark ? QColor(230, 130, 50) : QColor(160, 70, 0));
         painter->drawText(layout.senderRect.x(), layout.baseLine, layout.senderText);
         painter->setFont(oldFont);
+        painter->setPen(oldPen);
 
 #ifdef DEBUG_PAINTING
         painter->save();

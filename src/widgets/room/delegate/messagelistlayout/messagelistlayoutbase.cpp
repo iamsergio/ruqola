@@ -67,9 +67,9 @@ QString MessageListLayoutBase::senderText(const Message *message) const
                 displayName = message->username();
             }
         }
-        return u'@' + displayName;
+        return displayName + u':';
     } else {
-        return u'@' + message->username();
+        return message->username() + u':';
     }
 }
 

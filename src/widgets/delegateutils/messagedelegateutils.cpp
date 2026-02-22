@@ -123,6 +123,7 @@ void MessageDelegateUtils::drawSelection(QTextDocument *doc,
     const QRect clip(0, 0, rect.width(), rect.height());
 
     QAbstractTextDocumentLayout::PaintContext ctx;
+    ctx.palette.setColor(QPalette::Text, QColor(u"#b9bfc8"_s));
     if (selection) {
         const QList<QAbstractTextDocumentLayout::Selection> selections =
             MessageDelegateUtils::selection(selection, doc, index, option, msgAttach, msgUrl, isAMessage);

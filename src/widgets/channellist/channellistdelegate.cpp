@@ -101,7 +101,7 @@ void ChannelListDelegate::paint(QPainter *painter, const QStyleOptionViewItem &o
 {
     // [M] <avatar> [M] <icon> [M] <name>       <(nr_unread)> [M]    ([M] = margin)
     const auto isHeader = !index.parent().isValid();
-    const int iconSize = isHeader ? 0 : option.widget->style()->pixelMetric(QStyle::PM_ButtonIconSize);
+    const int iconSize = isHeader ? 0 : option.rect.height() - extraMargins;
     const int margin = DelegatePaintUtil::margin();
     int offsetAvatarRoom = 0;
     const bool showRoomAvatar = mRocketChatAccount ? mRocketChatAccount->ownUserPreferences().showRoomAvatar() : false;
@@ -122,6 +122,9 @@ void ChannelListDelegate::paint(QPainter *painter, const QStyleOptionViewItem &o
 
     QStyleOptionViewItem optionCopy = option;
     optionCopy.showDecorationSelected = true;
+    if (!isHeader) {
+        optionCopy.palette.setBrush(QPalette::Text, QColor(u"#b9bfc8"_s));
+    }
     drawBackground(painter, optionCopy, index);
 
     if (!isHeader) {
@@ -155,6 +158,11 @@ void ChannelListDelegate::paint(QPainter *painter, const QStyleOptionViewItem &o
         if (index.data(RoomModel::UserOffline).toBool()) {
             optionCopy.palette.setBrush(QPalette::Text, ColorsAndMessageViewStyle::self().schemeView().foreground(KColorScheme::InactiveText).color());
         }
+    }
+    if (!isHeader) {
+        QFont font = optionCopy.font;
+        font.setPointSizeF(optionCopy.font.pointSizeF() * 1.1);
+        optionCopy.font = font;
     }
     const bool hasPendingMessageTyped = index.data(RoomModel::RoomHasPendingMessageTyped).toBool();
     if (hasPendingMessageTyped) {
@@ -231,7 +239,7 @@ QSize ChannelListDelegate::sizeHint(const QStyleOptionViewItem &option, const QM
         height = size.height() * 1.5;
         break;
     }
-    return size + QSize(0, (isHeader ? 0 : height) + extraMargins);
+    return size + QSize(0, (isHeader ? 0 : height) + extraMargins + (isHeader ? 0 : 4));
 }
 
 #include "moc_channellistdelegate.cpp"
